@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>칼림바 배우기 — 구조와 연습 게임</title>
+<style>
+  :root{
+    --ink:#1C1B2E; --ink-2:#565374; --line:#E6E5F0;
+    --indigo:#4338CA; --violet:#6C5CE7; --teal:#0FB9B1; --deep:#26235C;
+    --bg:#FBFBFE; --card:#fff; --ok:#1E7A5A; --warn:#B4451F; --r:16px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Pretendard","Malgun Gothic","맑은 고딕",system-ui,sans-serif;line-height:1.7;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 20px}
+  a{color:var(--indigo)}
+
+  header.hero{background:linear-gradient(135deg,#2B2A72,#4338CA 40%,#6C5CE7 70%,#0FB9B1 120%);color:#fff;padding:40px 0 34px}
+  header.hero .wrap{max-width:860px}
+  .hero h1{margin:0 0 8px;font-size:30px;font-weight:800}
+  .hero p{margin:0;color:#D9D6F6;font-size:15px}
+  .hero .back{display:inline-block;margin-bottom:14px;color:#Ebe8ff;text-decoration:none;font-size:14px;font-weight:700}
+
+  section{margin:34px 0;scroll-margin-top:16px}
+  h2{font-size:22px;font-weight:800;color:var(--deep);margin:0 0 4px;display:flex;align-items:center;gap:9px}
+  .lead{margin:0 0 18px;color:var(--ink-2);font-size:14.5px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+
+  /* ── 칼림바 (실제 모양 SVG) ── */
+  .kalimba{width:100%;overflow-x:auto;padding:6px 0}
+  .kalimba svg{display:block;width:100%;max-width:720px;height:auto;margin:0 auto;filter:drop-shadow(0 6px 16px rgba(30,20,10,.28))}
+  .ktine{cursor:pointer}
+  .ktine .metal2{transition:filter .15s ease;transform-box:fill-box;transform-origin:50% 0%}
+  .ktine:hover .metal2{filter:brightness(1.07)}
+  .ktine.lit .metal2{filter:brightness(1.2) drop-shadow(0 0 5px #FFD269);animation:kpluck .3s ease}
+  .ktine.soft .metal2{filter:brightness(1.12) drop-shadow(0 0 4px #8ED0CB)}
+  /* 눌러야 할 음판 안내 — 색이 바뀜 */
+  .ktine.guide .metal2{fill:#22C55E;stroke:#12813F;filter:drop-shadow(0 0 9px rgba(34,197,94,.95))}
+  .ktine.guide text{fill:#06341B !important}
+  .ktine:focus-visible{outline:none}
+  .ktine:focus-visible .metal2{filter:drop-shadow(0 0 6px #0FB9B1)}
+  @keyframes kpluck{0%{transform:translateY(0)}28%{transform:translateY(3px)}100%{transform:translateY(0)}}
+  @media(prefers-reduced-motion:reduce){.ktine.lit .metal2{animation:none}}
+  .kal-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+
+  button,select{font-family:inherit;font-size:14px;font-weight:700;border-radius:9px;border:1px solid var(--line);
+    background:#fff;color:var(--ink);cursor:pointer;padding:9px 15px}
+  button:hover:not(:disabled){border-color:var(--ink-2)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.pri{background:var(--indigo);border-color:var(--indigo);color:#fff}
+  button.tealbtn{background:var(--teal);border-color:var(--teal);color:#fff}
+  .toggle{display:inline-flex;align-items:center;gap:7px;font-size:14px;color:var(--ink-2)}
+
+  .songtabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .songtabs button{border-radius:999px}
+  .songtabs button.on{background:var(--violet);border-color:var(--violet);color:#fff}
+  .song-meta{font-size:13.5px;color:var(--ink-2);margin:0 0 14px}
+  .song-meta b{color:var(--deep)}
+
+  .player{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:8px}
+  .player .time{font-variant-numeric:tabular-nums;font-size:13.5px;color:var(--ink-2);min-width:96px}
+  .seek{flex:1 1 220px;accent-color:var(--violet)}
+  .rowopts{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:6px;font-size:13.5px;color:var(--ink-2)}
+  .rowopts input[type=range]{accent-color:var(--indigo);vertical-align:middle}
+
+  /* 악보 이미지 (여백 크롭, 스크롤 없음) */
+  .score-img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:12px;background:#fff;margin-top:6px}
+
+  /* 악보 위 진행 커서 (줄 단위로 이동) */
+  #scoreWrap{position:relative}
+  #scur{position:absolute;top:0;left:0;width:0;pointer-events:none;display:none;z-index:4;transition:left .1s linear}
+  #scur.on{display:block}
+  #scur .l{position:absolute;left:-1.5px;width:3px;border-radius:2px;
+    background:linear-gradient(180deg,#FFC24B,#F5891E);box-shadow:0 0 8px rgba(245,140,30,.9)}
+  #scur .h{position:absolute;left:-7px;top:-9px;width:0;height:0;
+    border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid #F5891E}
+
+  /* ③ 칼림바 타일 게임 */
+  .game{position:relative;background:linear-gradient(180deg,#1B1B34,#101024);border-radius:14px 14px 0 0;overflow:hidden;
+    height:330px;user-select:none;touch-action:manipulation}
+  .tilearea{position:absolute;inset:0}
+  .hitline{position:absolute;left:0;right:0;height:3px;background:rgba(255,255,255,.4);z-index:3}
+  .hitzone{position:absolute;left:0;right:0;z-index:2;background:rgba(108,92,231,.12);
+    border-top:1px solid rgba(255,255,255,.2);border-bottom:1px solid rgba(255,255,255,.2)}
+  .hitzone.bad{background:rgba(200,60,60,.22)}
+  .tile{position:absolute;height:40px;border-radius:8px;
+    background:linear-gradient(180deg,#7C6BE6,#4B3DC4);box-shadow:0 2px 6px rgba(0,0,0,.35);
+    color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:15px}
+  .tile.hit{background:linear-gradient(180deg,#25C4B8,#0C9A90)}
+  /* 옥타브 점 (1 과 높은 1 구분) */
+  .tile.oct1::after,.tile.oct2::after{content:'';position:absolute;top:5px;left:50%;
+    width:4px;height:4px;border-radius:50%;background:#fff}
+  .tile.oct1::after{transform:translateX(-50%)}
+  .tile.oct2::after{transform:translateX(-50%);box-shadow:-5px 0 0 #fff,5px 0 0 #fff;background:transparent}
+  /* 카운트다운 */
+  .countin{position:absolute;inset:0;z-index:6;display:none;flex-direction:column;
+    align-items:center;justify-content:center;background:rgba(16,16,36,.55);color:#fff;pointer-events:none}
+  .countin.on{display:flex}
+  .countin .n{font-size:76px;font-weight:800;line-height:1;text-shadow:0 4px 18px rgba(0,0,0,.5)}
+  .countin .c{margin-top:8px;font-size:15px;font-weight:700;color:#D7D4F5}
+  /* 게임 아래 = 실제 칼림바(건반 역할) */
+  #kalimba3{background:#101024;border-radius:0 0 14px 14px;padding-top:0}
+  #kalimba3 svg{filter:none}
+  .gamebar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:14px}
+  .scorebox{display:flex;gap:20px;flex-wrap:wrap}
+  .scorebox .s{text-align:center}
+  .scorebox .s .n{font-size:28px;font-weight:800;color:var(--deep);line-height:1}
+  .scorebox .s .c{font-size:12px;color:var(--ink-2)}
+  #gameMsg{margin-top:10px;font-size:14px;font-weight:700;min-height:20px}
+
+  /* 랭킹 */
+  .rank{margin-top:16px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .rank h4{margin:0;padding:11px 14px;background:#F4F3FC;font-size:14px;color:var(--deep)}
+  .rank ol{margin:0;padding:6px 14px 12px 34px}
+  .rank li{font-size:14px;padding:4px 0;color:#3B3757}
+  .rank li b{color:var(--deep)}
+  .rank li span{float:right;font-weight:800;color:var(--violet);font-variant-numeric:tabular-nums}
+  .rank .empty{padding:12px 14px;font-size:13.5px;color:var(--ink-2)}
+  /* 점수 입력 창 */
+  .modal{position:fixed;inset:0;background:rgba(20,18,40,.55);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal.on{display:flex}
+  .modal .box{background:#fff;border-radius:16px;padding:24px;max-width:340px;width:90%;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+  .modal .big{font-size:40px;font-weight:800;color:var(--violet);line-height:1}
+  .modal input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:15px;margin:14px 0 12px;text-align:center}
+  .modal input:focus{outline:2px solid var(--teal);outline-offset:-1px}
+  .modal .btns{display:flex;gap:8px;justify-content:center}
+
+  .note{margin-top:12px;padding:11px 15px;border-radius:10px;background:#F1F0FB;font-size:13px;color:#463F6E}
+  footer{border-top:1px solid var(--line);padding:22px 0 60px;color:var(--ink-2);font-size:13px}
+  @media(max-width:640px){.game{height:340px}.tile{height:38px}}
+/* ══════════════════════════════════════════════════════════
+   Studio 테마 — 악기 교육용 전문 도구 톤
+   종이빛 배경 · 얇은 테두리 · 절제된 곡률 · 황동/딥틸 액센트
+   ══════════════════════════════════════════════════════════ */
+:root{
+  --st-bg:#F4F4F1; --st-panel:#FFFFFF; --st-ink:#15181A; --st-mut:#5D6469;
+  --st-line:#E1E1DC; --st-line2:#CFCFC8;
+  --st-teal:#14595C; --st-teal2:#0E4548; --st-brass:#A8843F; --st-brass2:#8C6C2E;
+  --st-r:10px;
+}
+body{background:var(--st-bg);color:var(--st-ink);line-height:1.65;
+  font-family:"Pretendard","Malgun Gothic","맑은 고딕",system-ui,sans-serif}
+.wrap{max-width:1060px}
+
+/* 헤더 — 짙은 패널, 얇은 황동 라인 */
+header.hero{background:#15211F;color:#EDEBE4;padding:0;border-bottom:3px solid var(--st-brass)}
+header.hero .wrap{max-width:1060px;background:transparent;border-radius:0;padding:30px 20px 26px;
+  box-shadow:none;position:relative;overflow:visible}
+header.hero .wrap::before,header.hero .wrap::after{display:none}
+.hero h1{color:#F3F1EA;font-size:27px;font-weight:700;letter-spacing:-.01em;margin:0 0 6px}
+.hero p{color:#A9B3AE;font-size:14.5px}
+.hero .back{color:var(--st-brass);font-weight:600;font-size:13.5px;letter-spacing:.01em}
+
+/* 섹션 · 패널 */
+section{margin:30px 0}
+h2{color:var(--st-ink);font-size:19px;font-weight:700;letter-spacing:-.005em;
+  padding-bottom:9px;border-bottom:1px solid var(--st-line2);margin-bottom:12px}
+.lead{color:var(--st-mut);font-size:14px;margin-bottom:16px}
+.card{background:var(--st-panel);border:1px solid var(--st-line);border-radius:var(--st-r);
+  padding:22px;box-shadow:0 1px 2px rgba(20,25,30,.04)}
+
+/* 버튼 — 각지고 절제된 */
+button,select{border-radius:7px;border:1px solid var(--st-line2);background:#FBFBF9;
+  color:var(--st-ink);padding:8px 15px;font-weight:600;font-size:13.5px;letter-spacing:.01em}
+button:hover:not(:disabled){background:#F1F1EC;border-color:#A9A9A0;color:var(--st-ink)}
+button.pri,button.tealbtn{border:1px solid transparent;color:#fff}
+button.pri{background:var(--st-teal)} button.pri:hover:not(:disabled){background:var(--st-teal2);color:#fff}
+button.tealbtn{background:var(--st-brass)} button.tealbtn:hover:not(:disabled){background:var(--st-brass2);color:#fff}
+.toggle{color:var(--st-mut);font-size:13.5px}
+.fields input,.modal input{border-radius:7px;border:1px solid var(--st-line2)}
+
+/* 곡 탭 — 세그먼트 컨트롤 */
+.songtabs{gap:0;border:1px solid var(--st-line2);border-radius:8px;overflow:hidden;width:fit-content}
+.songtabs button{border-radius:0;border:0;border-right:1px solid var(--st-line);background:#FBFBF9;font-weight:600}
+.songtabs button:last-child{border-right:0}
+.songtabs button.on{background:var(--st-teal);border-color:var(--st-teal);color:#fff}
+.song-meta{color:var(--st-mut);font-size:13px;border-left:3px solid var(--st-brass);padding-left:10px}
+.song-meta b{color:var(--st-ink)}
+
+/* 재생 컨트롤 */
+.seek,.rowopts input[type=range]{accent-color:var(--st-teal)}
+.rowopts,.player .time{color:var(--st-mut)}
+.player .time{font-family:Consolas,monospace;font-size:13px}
+
+/* 악보 */
+.score-img{border:1px solid var(--st-line);border-radius:6px;box-shadow:none}
+#scur .l{background:var(--st-brass);box-shadow:0 0 6px rgba(168,132,63,.75)}
+#scur .h{border-top-color:var(--st-brass)}
+
+/* 게임 — 계기판 느낌 */
+.game{border-radius:var(--st-r) var(--st-r) 0 0;background:linear-gradient(180deg,#1B2422,#121A19);
+  border:1px solid #0D1413;border-bottom:0}
+#kalimba3{background:#121A19;border-radius:0 0 var(--st-r) var(--st-r);border:1px solid #0D1413;border-top:0}
+.tile{border-radius:5px;background:linear-gradient(180deg,#2E7E80,var(--st-teal));box-shadow:0 1px 3px rgba(0,0,0,.4);
+  font-weight:700}
+.tile.hit{background:linear-gradient(180deg,#C9A45C,var(--st-brass))}
+.hitzone{background:rgba(168,132,63,.13);border-color:rgba(255,255,255,.16)}
+.hitline{background:var(--st-brass)}
+.countin .n{font-size:64px;font-weight:700}
+
+/* 점수 — 계측기 스타일 */
+.scorebox{gap:0;border:1px solid var(--st-line2);border-radius:8px;overflow:hidden}
+.scorebox .s{background:#FBFBF9;border-right:1px solid var(--st-line);border-radius:0;
+  padding:12px 22px;min-width:88px;color:var(--st-ink)}
+.scorebox .s:last-child{border-right:0}
+.scorebox .s .n{font-family:Consolas,monospace;font-size:23px;font-weight:700;color:var(--st-teal)}
+.scorebox .s:nth-child(2) .n{color:#9A4B32}
+.scorebox .s:nth-child(4) .n{color:var(--st-brass2)}
+.scorebox .s .c{font-size:11px;color:var(--st-mut);font-weight:600;letter-spacing:.02em;text-transform:none}
+
+/* 랭킹 — 표 형식 */
+.rank{border:1px solid var(--st-line);border-radius:8px;background:#FBFBF9}
+.rank h4{background:#F2F2ED;color:var(--st-ink);font-size:13px;font-weight:700;
+  padding:9px 14px;border-bottom:1px solid var(--st-line)}
+.rank ol{padding:0;list-style:none;margin:0}
+.rank li{background:transparent;border-radius:0;border-bottom:1px solid var(--st-line);
+  padding:9px 14px;margin:0;box-shadow:none;font-size:13.5px}
+.rank li:last-child{border-bottom:0}
+.rank li:nth-child(1),.rank li:nth-child(2),.rank li:nth-child(3){background:transparent}
+.rank li span{color:var(--st-teal);font-family:Consolas,monospace}
+.rank .empty{color:var(--st-mut);font-size:13px;padding:12px 14px}
+
+/* 안내 */
+.note{background:#F2F2ED;border:1px solid var(--st-line);color:#4A5054;border-radius:7px;font-size:12.5px}
+
+/* 모달 */
+.modal .box{border-radius:var(--st-r);border:1px solid var(--st-line2)}
+.modal .big{color:var(--st-teal);font-family:Consolas,monospace}
+
+/* 칼림바 안내 색 — 황동 계열로 통일 */
+.ktine.guide .metal2{fill:#C9A45C;stroke:#8C6C2E;filter:drop-shadow(0 0 7px rgba(168,132,63,.9))}
+.ktine.guide text{fill:#2A1F08 !important}
+
+footer{border-top:1px solid var(--st-line2);color:var(--st-mut);font-size:12.5px;padding-top:18px}
+@media(max-width:640px){ .hero h1{font-size:22px} .songtabs{width:100%} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    
+    <h1>🎹 칼림바 배우기</h1>
+    <p>17음판 구조를 눌러 익히고, 떨어지는 타일로 연습해요. 설치 없이 브라우저에서 바로.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ① 인터랙티브 칼림바 -->
+  <section id="sec-kalimba">
+    <h2>① 칼림바 구조 — 눌러서 확인하기</h2>
+    <p class="lead">17음판 C장조. 가운데 가장 긴 음판이 <b>1번(도)</b>이고, 좌우로 번갈아 높아집니다. 음판을 누르면 소리가 나요.</p>
+    <div class="card">
+      <div class="kalimba" id="kalimba1"></div>
+      <div class="kal-tools">
+        <button id="btnScale" class="pri" type="button">도레미 음계 듣기 ▶</button>
+        <label class="toggle"><input type="checkbox" id="showNames" checked> 계이름 표시</label>
+        <label class="toggle"><input type="checkbox" id="showNums" checked> 숫자(타브) 표시</label>
+        <span class="note" style="margin:0">🎧 소리가 안 나면 화면을 한 번 클릭한 뒤 다시 눌러 주세요.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 연습곡 + 악보 + 연주용 칼림바 + 커서 -->
+  <section id="sec-play">
+    <h2>② 연습곡 — 수업 자료에서 볼 수 있어요</h2>
+    <p class="lead">전체 버전에서는 악보를 보며 반주에 맞춰 연습할 수 있어요. 아래 칼림바는 여기서도 눌러볼 수 있습니다.</p>
+
+    <div class="songtabs" id="songtabs" role="tablist"></div>
+
+    <div class="card">
+      <p class="song-meta" id="songMeta"></p>
+
+      <div class="note" style="margin:0 0 14px">
+        <b>음원은 공개하지 않습니다.</b> 교과서 음원과 악보는 저작권이 있어 이 공개 페이지에 담지 않았어요.
+        수업을 듣는 학생은 구글 클래스룸에서 <b>전체 버전</b>(음원·악보·마디 커서·건반 안내)을 받을 수 있습니다.
+      </div>
+      <div class="player" style="display:none">
+        <button id="btnPlay" type="button">재생</button><span class="time" id="timeLbl"></span>
+        <input class="seek" id="seek" type="range" min="0" max="1000" value="0">
+        <input id="rate" type="range" min="0.5" max="1" step="0.05" value="1"><b id="rateLbl"></b>
+        <input type="checkbox" id="useAccomp"><input type="checkbox" id="guideOn">
+      </div>      <audio id="audio" preload="metadata"></audio>
+
+      <!-- 악보 (여백 크롭 이미지) + 진행 커서 -->
+      <div id="scoreWrap">
+        <img id="scoreImg" class="score-img" alt="악보" src="">
+        <div id="scur"><div class="h"></div><div class="l"></div></div>
+      </div>
+
+      <!-- 연주용 칼림바 -->
+      <div style="margin-top:14px">
+        <div class="kalimba" id="kalimba2"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ 피아노 타일 게임 -->
+  <section id="sec-game">
+    <h2>③ 타일 게임 — 떨어지는 음을 제때 눌러라!</h2>
+    <p class="lead">타일이 <b>자기 음판 자리</b>로 떨어집니다. 기준선에 닿는 순간 <b>아래 칼림바의 그 음판</b>을 눌러 맞히세요. 실제 운지 그대로 연습됩니다. 수록곡은 모두 공유저작물이에요.</p>
+    <div class="card">
+      <div class="gamebar" style="margin-top:0;margin-bottom:12px">
+        <label style="font-size:14px;font-weight:700">곡</label>
+        <select id="gameSong"></select>
+        <label style="font-size:14px;font-weight:700">낙하 속도</label>
+        <select id="gameSpeed">
+          <option value="1">느리게</option>
+          <option value="1.4" selected>보통</option>
+          <option value="1.9">빠르게</option>
+        </select>
+        <input type="checkbox" id="gameAccomp" style="display:none">
+        <button id="btnGame" class="tealbtn" type="button">게임 시작</button>
+        <button id="btnGameStop" type="button" disabled>중지</button>
+      </div>
+
+      <div class="game" id="game">
+        <div class="tilearea" id="tilearea"></div>
+        <div class="hitzone" id="hitzone"></div>
+        <div class="hitline" id="hitline"></div>
+        <div class="countin" id="countin"><div class="n" id="countN"></div><div class="c" id="countC"></div></div>
+      </div>
+      <!-- 게임의 '건반' = 실제 칼림바. 떨어지는 타일의 음판을 누르세요 -->
+      <div class="kalimba" id="kalimba3"></div>
+
+      <div class="gamebar">
+        <div class="scorebox">
+          <div class="s"><div class="n" id="gScore">0</div><div class="c">맞힘</div></div>
+          <div class="s"><div class="n" id="gMiss">0</div><div class="c">놓침</div></div>
+          <div class="s"><div class="n" id="gCombo">0</div><div class="c">콤보</div></div>
+          <div class="s"><div class="n" id="gBest">0</div><div class="c">최고 기록</div></div>
+        </div>
+      </div>
+      <div id="gameMsg"></div>
+
+      <div class="rank">
+        <h4>🏆 랭킹 — <span id="rankSong"></span></h4>
+        <div id="rankBody"></div>
+      </div>
+      <div class="note">타일은 그 음의 <b>실제 음판 위치</b>로 떨어지고, <b>반주 박자에 맞춰</b> 내려옵니다. 게임이 끝나면 이름을 넣어 랭킹에 올릴 수 있어요.</div>
+    </div>
+  </section>
+
+</div>
+
+<!-- 점수 입력 창 -->
+<div class="modal" id="scoreModal">
+  <div class="box">
+    <div style="font-size:14px;color:#565374;font-weight:700">게임 끝! 맞힌 횟수</div>
+    <div class="big" id="mScore">0</div>
+    <div style="font-size:13px;color:#565374;margin-top:6px" id="mDetail"></div>
+    <input id="mName" type="text" maxlength="10" placeholder="이름을 넣어 주세요">
+    <div class="btns">
+      <button class="tealbtn" id="mSave" type="button">랭킹에 올리기</button>
+      <button id="mSkip" type="button">건너뛰기</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    오션중학교 음악과 · 칼림바 연습 스튜디오 · 중학교 2학년<br>
+    공개용 버전입니다. 저작권이 있는 음원과 악보는 포함하지 않았습니다.<br>수록곡: 음계 연습 · 작은별(전래) · 바흐 미뉴에트(1725) — 모두 공유저작물입니다.
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(s){ return document.querySelector(s); };
+  var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
+
+  /* ── Web Audio: 칼림바 음색 ── */
+  var actx=null;
+  function ac(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); return actx; }
+  function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+  function pluck(freq,t0,dur){
+    var a=ac(); t0=t0||a.currentTime; dur=dur||1.1;
+    var o1=a.createOscillator(),o2=a.createOscillator(),g=a.createGain();
+    o1.type='triangle'; o2.type='sine'; o1.frequency.value=freq; o2.frequency.value=freq*2.01;
+    var g2=a.createGain(); g2.gain.value=0.28; o2.connect(g2).connect(g);
+    o1.connect(g); g.connect(a.destination);
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(0.5,t0+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0002,t0+dur);
+    o1.start(t0); o2.start(t0); o1.stop(t0+dur); o2.stop(t0+dur);
+  }
+
+  /* ── 음이름/타브 ── */
+  var LAYOUT=['D6','B5','G5','E5','C5','A4','F4','D4','C4','E4','G4','B4','D5','F5','A5','C6','E6'];
+  var NAME_KO={C:'도',D:'레',E:'미',F:'파',G:'솔',A:'라',B:'시'};
+  var PITCH={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+  function noteToMidi(n){ var m=n.match(/([A-G])(\d)/); return 12*(parseInt(m[2],10)+1)+PITCH[m[1]]; }
+  var DEG={C:'1',D:'2',E:'3',F:'4',G:'5',A:'6',B:'7'};
+  function tabLabel(n){ var m=n.match(/([A-G])(\d)/),o=parseInt(m[2],10),d=DEG[m[1]]; if(o>=6)return d+'̈'; if(o===5)return d+'̇'; if(o<=3)return d+'̣'; return d; }
+  function tabToMidi(tok){ var m=tok.match(/^([1-7])('+|"+|,+)?$/); if(!m)return null; var b={1:'C',2:'D',3:'E',4:'F',5:'G',6:'A',7:'B'}[m[1]],o=4,mk=m[2]||''; if(mk[0]==="'")o=4+mk.length; else if(mk[0]==='"')o=5+mk.length; else if(mk[0]===',')o=4-mk.length; return noteToMidi(b+o); }
+  function midiToNote(midi){ var best=null,bd=99; LAYOUT.forEach(function(n){ var d=Math.abs(noteToMidi(n)-midi); if(d<bd){bd=d;best=n;} }); return best; }
+  function tokLabel(tok){ return tok.replace(/'/g,'̇').replace(/,/g,'̣'); }
+
+  /* ── 칼림바 빌더 (재사용): 위=누름대·홀, 아래로 음판 ── */
+  var SVGNS='http://www.w3.org/2000/svg';
+  function sEl(name,attrs){ var e=document.createElementNS(SVGNS,name); for(var k in attrs) e.setAttribute(k,attrs[k]); return e; }
+  function makeKalimba(container){
+    var W=720,H=474, ax=64, aw=592, n=LAYOUT.length, slot=aw/n, tw=19;
+    var barY=176, minLen=128, maxLen=246, anchorTop=barY-18;
+    var tineEls={}, fracs=[];
+    var svg=sEl('svg',{viewBox:'0 0 '+W+' '+H, role:'group','aria-label':'17음 칼림바'});
+    var defs=sEl('defs',{});
+    function grad(id,stops){ var g=sEl('linearGradient',{id:id,x1:'0',y1:'0',x2:'0',y2:'1'}); stops.forEach(function(s){ g.appendChild(sEl('stop',{offset:s[0],'stop-color':s[1]})); }); return g; }
+    var uid='g'+Math.floor((container.id||'k').length*97+ (container.id==='kalimba2'?1:0));
+    defs.appendChild(grad(uid+'wood',[['0','#7A5636'],['1','#3B2515']]));
+    defs.appendChild(grad(uid+'wood2',[['0','#8B663F'],['1','#492E1A']]));
+    defs.appendChild(grad(uid+'metal',[['0','#F6F9FC'],['0.5','#D2D9E0'],['1','#98A3AE']]));
+    defs.appendChild(grad(uid+'bar',[['0','#554A42'],['1','#241B14']]));
+    var rg=sEl('radialGradient',{id:uid+'hole',cx:'0.5',cy:'0.4',r:'0.6'});
+    rg.appendChild(sEl('stop',{offset:'0','stop-color':'#180D06'})); rg.appendChild(sEl('stop',{offset:'1','stop-color':'#3A2716'}));
+    defs.appendChild(rg); svg.appendChild(defs);
+
+    svg.appendChild(sEl('rect',{x:24,y:12,width:W-48,height:H-24,rx:44,fill:'url(#'+uid+'wood)'}));
+    svg.appendChild(sEl('rect',{x:40,y:26,width:W-80,height:H-52,rx:34,fill:'url(#'+uid+'wood2)',stroke:'#2C1B0E','stroke-width':2}));
+    svg.appendChild(sEl('circle',{cx:W/2,cy:90,r:30,fill:'url(#'+uid+'hole)',stroke:'#2A190D','stroke-width':3}));
+
+    LAYOUT.forEach(function(note,i){
+      var midi=noteToMidi(note);
+      var rel=(midi-noteToMidi('C4'))/(noteToMidi('E6')-noteToMidi('C4'));
+      var len=maxLen-rel*(maxLen-minLen);
+      var cx=ax+slot*i+slot/2, x=cx-tw/2, tipY=anchorTop+len;
+      fracs.push({note:note, frac:cx/W});
+      var g=sEl('g',{'class':'ktine',tabindex:'0',role:'button','aria-label':NAME_KO[note[0]]+' '+note});
+      g.appendChild(sEl('rect',{x:ax+slot*i,y:anchorTop-14,width:slot,height:(tipY-anchorTop)+30,fill:'transparent'}));
+      g.appendChild(sEl('rect',{'class':'metal2',x:x,y:anchorTop,width:tw,height:(tipY-anchorTop),rx:tw/2,fill:'url(#'+uid+'metal)',stroke:'#8792A0','stroke-width':0.8}));
+      g.appendChild(sEl('circle',{cx:cx,cy:tipY-2,r:tw/2-1,fill:'#FBFDFF','fill-opacity':0.85}));
+      // 숫자 + 옥타브 점을 '도형'으로 그린다 (결합문자는 안 보여서 1과 1̇이 구분 안 됨)
+      var deg=DEG[note[0]], oct=parseInt(note.match(/\d/)[0],10);
+      var tn=sEl('text',{'data-num':'1',x:cx,y:barY+30,'text-anchor':'middle','font-size':'13','font-weight':'800',fill:'#33404A'}); tn.textContent=deg;
+      g.appendChild(tn);
+      var dots=oct-4;                                  // 4=기본, 5=점1개, 6=점2개
+      if(dots>0){
+        for(var q=0;q<dots;q++){
+          g.appendChild(sEl('circle',{'data-num':'1',cx:cx+(dots===1?0:(q?3.6:-3.6)),cy:barY+30-13,r:1.9,fill:'#33404A'}));
+        }
+      } else if(dots<0){
+        g.appendChild(sEl('circle',{'data-num':'1',cx:cx,cy:barY+30+4,r:1.9,fill:'#33404A'}));
+      }
+      var nm=sEl('text',{'data-name':'1',x:cx,y:barY+47,'text-anchor':'middle','font-size':'11',fill:'#5A6672'}); nm.textContent=NAME_KO[note[0]];
+      g.appendChild(nm);
+      g.addEventListener('click', function(){ playNote(note); });
+      g.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.code==='Space'){ e.preventDefault(); playNote(note); } });
+      svg.appendChild(g);
+      (tineEls[note]=tineEls[note]||[]).push(g);
+    });
+    svg.appendChild(sEl('rect',{x:ax-10,y:barY-10,width:aw+20,height:20,rx:7,fill:'url(#'+uid+'bar)'}));
+    svg.appendChild(sEl('circle',{cx:ax-2,cy:barY,r:4,fill:'#CBD1D6'}));
+    svg.appendChild(sEl('circle',{cx:ax+aw+2,cy:barY,r:4,fill:'#CBD1D6'}));
+    container.appendChild(svg);
+
+    function light(note,cls){ (tineEls[note]||[]).forEach(function(el){ el.classList.add(cls||'lit'); setTimeout(function(){el.classList.remove(cls||'lit');}, cls==='soft'?260:300); }); }
+    return { tineEls:tineEls, fracs:fracs, light:light, svg:svg };
+  }
+
+  // 세 대의 칼림바 (① 구조확인, ② 연주, ③ 게임 건반)
+  var K1 = makeKalimba($('#kalimba1'));
+  var K2 = makeKalimba($('#kalimba2'));
+  var K3 = makeKalimba($('#kalimba3'));
+  function playNote(note){ pluck(midiToFreq(noteToMidi(note))); K1.light(note); K2.light(note); K3.light(note); onGameNote(note); }
+
+  // 라벨 토글 (두 대 모두)
+  $('#showNames').addEventListener('change', function(e){ $$('[data-name]').forEach(function(x){ x.style.display=e.target.checked?'':'none'; }); });
+  $('#showNums').addEventListener('change', function(e){ $$('[data-num]').forEach(function(x){ x.style.visibility=e.target.checked?'':'hidden'; }); });
+  $('#btnScale').addEventListener('click', function(){
+    var scale=['C4','D4','E4','F4','G4','A4','B4','C5','D5','E5','F5','G5','A5','B5','C6','D6','E6'];
+    var a=ac(), t=a.currentTime+0.05;
+    scale.forEach(function(nn,i){ pluck(midiToFreq(noteToMidi(nn)), t+i*0.28, 0.5); setTimeout(function(){ K1.light(nn); }, i*280+40); });
+  });
+
+  /* ── 곡 데이터 ── */
+  // full = 곡 전체 멜로디(인쇄된 타브를 옮김). ' = 한 옥타브 위.
+  var SONGS={
+    scale:  { title:'음계 연습', composer:'기초 연습',    meta:'도레미 오르내리기',
+              melody:'', accomp:'', score:'kalimba-assets/minuet-score-blocked.png' },
+    twinkle:{ title:'작은별',   composer:'전래동요',      meta:'4/4 · 쉬운 곡',
+              melody:'', accomp:'', score:'kalimba-assets/minuet-score-blocked.png' },
+    minuet: { title:'미뉴에트', composer:'J.S. 바흐',     meta:'3/4 · 1725년 · 공유저작물',
+              melody:'', accomp:'', score:'kalimba-assets/minuet-score-blocked.png' }
+  };
+  // 음원에서 측정: beat=박 길이(초), off=반주 첫 박, mel=멜로디(칼림바)가 들어오는 시각
+  var TEMPO={ scale:{beat:0.55,off:0,mel:0}, twinkle:{beat:0.6,off:0,mel:0}, minuet:{beat:0.625,off:0,mel:0} }; // 못갖춘마디로 시작
+
+  /* ── 악보 = 유일한 정답 ──────────────────────────────────
+     "음:길이" 형식. 길이는 박 단위 (1=4분음표, 0.5=8분음표, 2=2분음표, 3=점2분음표)
+     음: 1~7, ' = 한 옥타브 위(점 하나), '' = 두 옥타브 위, , = 한 옥타브 아래
+     여기서 멜로디·타일·건반안내가 모두 생성된다 → 넷이 어긋날 수 없음
+     ────────────────────────────────────────────────────── */
+  var SCORE={
+    scale:"1:.5 2:.5 3:.5 4:.5 5:.5 6:.5 7:.5 1':.5 | 1':.5 7:.5 6:.5 5:.5 4:.5 3:.5 2:.5 1:.5 |"+
+          "1:.5 3:.5 5:.5 1':.5 5:.5 3:.5 1:.5 3:.5 | 5:.5 1':.5 5:.5 3:.5 1:2",
+    twinkle:"1:1 1:1 5:1 5:1 | 6:1 6:1 5:2 | 4:1 4:1 3:1 3:1 | 2:1 2:1 1:2 |"+
+            "5:1 5:1 4:1 4:1 | 3:1 3:1 2:2 | 5:1 5:1 4:1 4:1 | 3:1 3:1 2:2 |"+
+            "1:1 1:1 5:1 5:1 | 6:1 6:1 5:2 | 4:1 4:1 3:1 3:1 | 2:1 2:1 1:2",
+    minuet:"5:1 1:.5 2:.5 3:.5 4:.5 | 5:1 1:1 1:1 | 6:1 4:.5 5:.5 6:.5 7:.5 | 1':1 1:1 1:1 |"+
+           "4:1 5:.5 4:.5 3:.5 2:.5 | 3:1 4:.5 3:.5 2:.5 1:.5 | 2:1 4:1 7:1 | 1:3"
+  };
+
+  // 악보 → 마디 구조 (커서가 마디를 따라가기 위해)
+  var MEAS={};
+  (function buildMeasures(){
+    ['scale','twinkle','minuet'].forEach(function(id){
+      var acc=0, list=[];
+      SCORE[id].split('|').forEach(function(mstr){
+        var beats=0;
+        mstr.trim().split(/\s+/).forEach(function(tok){
+          if(!tok) return; var p=tok.split(':'); var d=parseFloat(p[1]);
+          if(isFinite(d)) beats+=d;
+        });
+        if(beats>0){ list.push({start:acc, beats:beats}); acc+=beats; }
+      });
+      MEAS[id]=list;
+    });
+  })();
+
+  // 악보 → 시각이 찍힌 음 목록 (음원 템포·시작점 기준)
+  var NOTES={};
+  (function buildFromScore(){
+    ['scale','twinkle','minuet'].forEach(function(id){
+      var tp=TEMPO[id], beat=tp.beat, t=tp.mel, list=[];
+      SCORE[id].split('|').join(' ').split(/\s+/).forEach(function(tok){
+        if(!tok) return;
+        var p=tok.split(':'); var dur=parseFloat(p[1]);
+        if(!isFinite(dur)) return;
+        var m=tabToMidi(p[0]);
+        if(m!=null) list.push({t:+t.toFixed(3), n:midiToNote(m), d:dur});
+        t+=dur*beat;                       // 쉼표(R)도 시간은 흘러야 한다
+      });
+      NOTES[id]=list;
+    });
+  })();
+  // 난이도 순 (왼쪽일수록 쉬움)
+  var ORDER=['scale','twinkle','minuet'];
+  var DIFF={ scale:'1단계 · 기초', twinkle:'2단계 · 쉬움', minuet:'3단계 · 보통' };
+  var curId='minuet', cur=SONGS[curId], audio=$('#audio');
+
+  var songtabs=$('#songtabs');
+  ORDER.forEach(function(id,i){
+    var b=document.createElement('button'); b.type='button'; b.dataset.id=id; b.setAttribute('role','tab');
+    b.innerHTML='<span style="opacity:.6;font-size:12px">'+(i+1)+'</span> '+SONGS[id].title;
+    b.title=DIFF[id];
+    b.addEventListener('click', function(){ selectSong(id); }); songtabs.appendChild(b);
+  });
+
+  function setSource(){ var p=audio.currentTime||0, was=!audio.paused; audio.src=$('#useAccomp').checked?cur.accomp:cur.melody; audio.playbackRate=parseFloat($('#rate').value); if(p){ try{audio.currentTime=p;}catch(e){} } if(was) audio.play(); }
+  $('#useAccomp').addEventListener('change', setSource);
+
+  function selectSong(id){
+    curId=id; cur=SONGS[id];
+    $$('#songtabs button').forEach(function(b){ b.classList.toggle('on', b.dataset.id===id); });
+    $('#songMeta').innerHTML='<b>'+cur.title+'</b> · '+cur.composer+' · '+cur.meta+' · <span style="color:var(--violet);font-weight:700">'+DIFF[id]+'</span>';
+    audio.pause(); audio.src=$('#useAccomp').checked?cur.accomp:cur.melody; audio.currentTime=0; audio.playbackRate=parseFloat($('#rate').value);
+    $('#btnPlay').textContent='▶ 재생';
+    systems=[]; $('#scoreImg').src=cur.score; $('#scoreImg').alt=cur.title+' 악보';
+    $('#scur').classList.remove('on');
+    updateTime();
+  }
+
+  function fmt(s){ s=Math.max(0,s||0); return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
+  var btnPlay=$('#btnPlay');
+  btnPlay.addEventListener('click', function(){ ac(); if(audio.paused){ audio.play(); } else { audio.pause(); } });
+  audio.addEventListener('play', function(){ btnPlay.textContent='⏸ 일시정지'; $('#scur').classList.add('on'); });
+  audio.addEventListener('pause', function(){ btnPlay.textContent='▶ 재생'; });
+  audio.addEventListener('ended', function(){ btnPlay.textContent='▶ 재생'; $('#scur').classList.remove('on'); });
+  $('#rate').addEventListener('input', function(e){ audio.playbackRate=parseFloat(e.target.value); $('#rateLbl').textContent=parseFloat(e.target.value).toFixed(1)+'×'; });
+
+  var seek=$('#seek'), seeking=false;
+  seek.addEventListener('input', function(){ seeking=true; if(audio.duration) audio.currentTime=seek.value/1000*audio.duration; });
+  seek.addEventListener('change', function(){ seeking=false; });
+  function updateTime(){ $('#timeLbl').textContent=fmt(audio.currentTime)+' / '+fmt(audio.duration); if(!seeking&&audio.duration) seek.value=audio.currentTime/audio.duration*1000; }
+
+  // 커서: 재생 진행에 따라 악보 위를 줄 단위로 이동
+  var scur=$('#scur'), scoreImg=$('#scoreImg'), systems=[];
+  function detectSystems(img){
+    var c=document.createElement('canvas'); c.width=img.naturalWidth; c.height=img.naturalHeight;
+    var x=c.getContext('2d'); x.drawImage(img,0,0);
+    var d=x.getImageData(0,0,c.width,c.height).data, H=c.height, W=c.width;
+    var rows=new Array(H).fill(0), maxd=0;
+    for(var y=0;y<H;y++){ var cnt=0; for(var px=0;px<W;px+=3){ var i=(y*W+px)*4; if(!(d[i]>232&&d[i+1]>232&&d[i+2]>232)) cnt++; } rows[y]=cnt; if(cnt>maxd)maxd=cnt; }
+    var thr=maxd*0.05, bands=[], s=-1;
+    for(var y2=0;y2<H;y2++){ var on=rows[y2]>thr; if(on&&s<0)s=y2; else if(!on&&s>=0){ if(y2-s>H*0.02) bands.push([s,y2]); s=-1; } }
+    if(s>=0) bands.push([s,H]);
+    var merged=[]; bands.forEach(function(b){ if(merged.length && b[0]-merged[merged.length-1][1] < H*0.10){ merged[merged.length-1][1]=b[1]; } else merged.push([b[0],b[1]]); });
+    // 오선(가로로 아주 긴 선)이 있는 줄만 = 실제 악보 줄 (제목·글씨 제외)
+    var darkAt=function(px,py){ var i=(py*W+px)*4; return !(d[i]>232&&d[i+1]>232&&d[i+2]>232); };
+    var keep=merged.filter(function(b){
+      var lines=0;
+      for(var y=b[0];y<b[1];y++){
+        var run=0,best=0;
+        for(var px=0;px<W;px++){ if(darkAt(px,y)){ run++; if(run>best)best=run; } else run=0; }
+        if(best > W*0.55) lines++;
+      }
+      return lines>=4;
+    });
+    if(!keep.length) keep=merged;
+    return keep.map(function(b){ var pad=(b[1]-b[0])*0.35; return {top:Math.max(0,(b[0]-pad)/H), bottom:Math.min(1,(b[1]+pad)/H)}; });
+  }
+  scoreImg.addEventListener('load', function(){
+    try{ systems=detectSystems(scoreImg); }catch(e){ systems=[{top:0.08,bottom:0.92}]; }
+  });
+  // 곡의 '음악 구간' 기준 진행도 (앞부분 무음/인트로 제외)
+  function musicProg(){
+    var tp=TEMPO[curId]; if(!audio.duration) return 0;
+    var start=tp?tp.mel:0, span=audio.duration-start;   // 전주 제외, 멜로디 구간만
+    if(span<=0) return 0;
+    return Math.max(0, Math.min(0.9999, (audio.currentTime-start)/span));
+  }
+  function moveCursor(){
+    if(!audio.duration || !systems.length){ return; }
+    var iw=scoreImg.clientWidth, ih=scoreImg.clientHeight;
+    var tp=TEMPO[curId], ms=MEAS[curId]||[];
+    var band, localX;
+
+    // ① 악보 기준: 지금이 '몇 번째 마디의 몇 박'인지 → 그 마디가 있는 줄의 그 위치
+    if(tp && ms.length){
+      var beatNow=(audio.currentTime-tp.mel)/tp.beat;
+      if(beatNow<0) beatNow=0;
+      var mi=0;
+      for(var i=0;i<ms.length;i++){ if(beatNow>=ms[i].start) mi=i; else break; }
+      var f=(beatNow-ms[mi].start)/ms[mi].beats;
+      if(f<0)f=0; if(f>1)f=1;
+      var M=ms.length, S=systems.length;
+      var per=M/S;                                  // 줄당 마디 수
+      var si=Math.min(S-1, Math.floor(mi/per));     // 이 마디가 있는 줄
+      var idxInSys=mi-si*per;                       // 줄 안에서 몇 번째 마디
+      band=systems[si];
+      // 악보 좌우 여백(음자리표 등) 살짝 보정
+      var L=0.055, R=0.985;
+      localX=(L+(R-L)*((idxInSys+f)/per))*iw;
+    } else {
+      // ② 마디선을 못 찾으면 줄 단위 근사 (예전 방식)
+      var prog=musicProg(), N=systems.length;
+      var idx=Math.floor(prog*N); if(idx>=N)idx=N-1;
+      band=systems[idx]; localX=(prog*N-idx)*iw;
+    }
+
+    scur.style.left=localX+'px';
+    var l=scur.querySelector('.l'), h=scur.querySelector('.h');
+    var top=band.top*ih, height=(band.bottom-band.top)*ih;
+    l.style.top=top+'px'; l.style.height=height+'px';
+    h.style.top=(top-9)+'px';
+  }
+  audio.addEventListener('timeupdate', function(){ updateTime(); if(!audio.paused) moveCursor(); });
+  audio.addEventListener('loadedmetadata', updateTime);
+
+  // ② 눌러야 할 음판 안내 — 반주 박자에 맞춰 색이 바뀜
+  var guideTimer=null, lastGuideK=-1, guideNote=null;
+  function guideInterval(id){
+    var b=TEMPO[id]?TEMPO[id].beat:0.6;
+    while(b>0.8) b/=2; while(b<0.4) b*=2;   // 듣기 좋은 간격으로
+    return b;
+  }
+  function clearGuide(){
+    if(guideNote){ (K2.tineEls[guideNote]||[]).forEach(function(el){ el.classList.remove('guide'); }); guideNote=null; }
+    lastGuideK=-1;
+  }
+  function tickGuide(){
+    if(!$('#guideOn').checked || audio.paused){ clearGuide(); return; }
+    var list=NOTES[curId]; if(!list || !list.length) return;
+    var t=audio.currentTime;
+    // 지금 울리고 있는 음 = 시각이 t를 막 지난 음 (실측 타이밍)
+    var k=-1;
+    for(var i=0;i<list.length;i++){ if(list[i].t<=t+0.06) k=i; else break; }
+    if(k<0 || t>list[list.length-1].t+2){ clearGuide(); return; }
+    if(k!==lastGuideK){
+      clearGuide(); lastGuideK=k;
+      var nn=list[k].n; guideNote=nn;
+      (K2.tineEls[nn]||[]).forEach(function(el){ el.classList.add('guide'); });
+    }
+  }
+  audio.addEventListener('play', function(){ if(guideTimer) clearInterval(guideTimer); guideTimer=setInterval(tickGuide,40); });
+  audio.addEventListener('pause', function(){ if(guideTimer){ clearInterval(guideTimer); guideTimer=null; } clearGuide(); });
+  audio.addEventListener('ended', function(){ if(guideTimer){ clearInterval(guideTimer); guideTimer=null; } clearGuide(); });
+  $('#guideOn').addEventListener('change', function(){ if(!this.checked) clearGuide(); });
+
+  /* ── ③ 피아노 타일 게임 ── */
+  var gameSong=$('#gameSong'), gameSel;
+  ORDER.forEach(function(id){ var o=document.createElement('option'); o.value=id; o.textContent=SONGS[id].title; gameSong.appendChild(o); });
+  gameSong.value=curId;
+  gameSong.addEventListener('change', function(){ prepareGame(); showBest(); renderRank(); });
+
+  var GAME=$('#game'), tileArea=$('#tilearea'), hitzone=$('#hitzone'), hitlineEl=$('#hitline');
+  var seq=[], tiles=[], playing=false, raf=null, score=0, miss=0, combo=0, maxcombo=0, TILE_H=40;
+  var musicStart=0, accActive=false, fallSec=1.36, melT=0, beatSec=0.6;   // 게임 시계(반주 기준)
+  var HIT_FRAC=0.88;   // 기준선 = 칼림바 바로 위
+  function gameH(){ return GAME.clientHeight; }
+  function hitY(){ return gameH()*HIT_FRAC; }
+
+  function seqFor(id){ return SONGS[id].full; }
+
+  // 타일이 떨어질 x = 그 음의 실제 칼림바 음판 위치
+  function colX(note){
+    var f=null; K3.fracs.forEach(function(o){ if(o.note===note) f=o.frac; });
+    if(f==null) return null;
+    var svg=K3.svg.getBoundingClientRect(), g=GAME.getBoundingClientRect();
+    return (svg.left-g.left)+f*svg.width;
+  }
+  function colW(){ var svg=K3.svg.getBoundingClientRect(); return Math.max(20, svg.width/LAYOUT.length*0.84); }
+
+  function prepareGame(){
+    // 실측 연주 데이터를 그대로 사용 → 반주와 리듬이 정확히 일치
+    seq=(NOTES[gameSong.value]||[]).slice();
+    hitlineEl.style.top=hitY()+'px';
+    hitzone.style.top=(hitY()-24)+'px'; hitzone.style.height='48px';
+  }
+  function layoutTiles(){
+    var w=colW();
+    tiles.forEach(function(t){ var x=colX(t.note); if(x==null) return; t.el.style.width=w+'px'; t.el.style.left=(x-w/2)+'px'; });
+  }
+
+  var speed=1.4;
+  // 게임용 반주(칼림바 소리 없음) — DOM에 두어 상태 확인이 되게
+  var gameAudio=document.createElement('audio'); gameAudio.id='gameAudio'; gameAudio.preload='metadata';
+  gameAudio.style.display='none'; GAME.parentNode.appendChild(gameAudio);
+  var accTimer=null;
+  function stopAccomp(){ if(accTimer){ clearTimeout(accTimer); accTimer=null; } try{ gameAudio.pause(); }catch(e){} var c=$('#countin'); if(c) c.classList.remove('on'); }
+
+  function startGame(){
+    ac(); prepareGame();
+    if(!seq.length){ return; }
+    speed=parseFloat($('#gameSpeed').value);
+    var useAcc=$('#gameAccomp').checked;
+    audio.pause();            // ②번 연습곡 재생과 겹치지 않게
+    stopAccomp();
+    gameAudio.src=SONGS[gameSong.value].accomp;
+    $('#gameMsg').textContent = useAcc? '반주 불러오는 중…' : '';
+    function begin(durSec){
+      tiles.forEach(function(t){ if(t.el&&t.el.parentNode) t.el.parentNode.removeChild(t.el); });
+      tiles=[]; score=0; miss=0; combo=0; maxcombo=0;
+      $('#gScore').textContent='0'; $('#gMiss').textContent='0'; $('#gCombo').textContent='0'; $('#gameMsg').textContent='';
+      var fallMs=1900/speed;
+      // 타일은 음원에서 측정한 '실제 박'에 맞춰 떨어진다 → 반주와 정확히 일치
+      var tp=TEMPO[gameSong.value] || {beat:0.6, off:0};
+      var iv=tp.beat; while(iv>0.8) iv/=2; while(iv<0.4) iv*=2;
+      var offMs=tp.off*1000, ivMs=iv*1000;
+      // 첫 타일이 첫 박에 닿도록: 음악 시작 시각을 역산
+      // 첫 음이 실제로 울리는 시각부터 게임. 전주는 4박 카운트인만.
+      melT=seq.length? seq[0].t : tp.mel; beatSec=tp.beat;
+      var startAt=Math.max(0, melT-4*beatSec);        // 반주를 여기서부터 재생
+      var lead0=400;
+      musicStart=performance.now()+lead0-startAt*1000;  // 가상 시계도 같은 기준
+      accActive=useAcc; fallSec=fallMs/1000;
+      var w=colW();
+      seq.forEach(function(ev){
+        var x=colX(ev.n); if(x==null) return;
+        var el=document.createElement('div'); el.className='tile';
+        var tdeg=DEG[ev.n[0]], toct=parseInt(ev.n.match(/\d/)[0],10);
+        el.textContent=tdeg;                              // 숫자만, 옥타브는 점으로
+        if(toct>=6) el.classList.add('oct2'); else if(toct===5) el.classList.add('oct1');
+        el.style.width=w+'px'; el.style.left=(x-w/2)+'px'; el.style.display='none';
+        tileArea.appendChild(el);
+        // 히트 시각 = 음원에서 그 음이 실제로 울리는 시각
+        tiles.push({note:ev.n, hitT:ev.t, el:el, done:false});
+      });
+      playing=true; $('#btnGame').disabled=true; $('#btnGameStop').disabled=false;
+      if(useAcc){ accTimer=setTimeout(function(){ if(playing){ gameAudio.currentTime=startAt; gameAudio.play().catch(function(){}); } }, lead0); }
+      loop();
+    }
+    if(useAcc){
+      if(gameAudio.readyState>=1 && isFinite(gameAudio.duration)) begin(gameAudio.duration);
+      else {
+        var done=false;
+        var h=function(){ if(done)return; done=true; gameAudio.removeEventListener('loadedmetadata',h); begin(gameAudio.duration); };
+        gameAudio.addEventListener('loadedmetadata',h);
+        setTimeout(function(){ if(!done){ done=true; begin(null); } }, 3000);   // 못 불러오면 반주 없이라도 시작
+      }
+    } else { begin(null); }
+  }
+  // 게임의 기준 시계 = 반주의 재생 위치(초). 반주가 없거나 아직 시작 전이면 가상 시계.
+  function nowMusic(){
+    if(accActive && !gameAudio.paused && gameAudio.currentTime>0) return gameAudio.currentTime;
+    return (performance.now()-musicStart)/1000;
+  }
+  function loop(){
+    if(!playing) return;
+    var m=nowMusic(), h=hitY(), remaining=0;
+    // 멜로디 시작 전 = 카운트인. 타일은 아직 내려오지 않는다.
+    var ci=$('#countin');
+    if(m < melT-0.02){
+      var left=Math.ceil((melT-m)/beatSec);
+      ci.classList.add('on');
+      $('#countN').textContent = left<=4? String(left) : '♪';
+      $('#countC').textContent = left<=4? '준비!' : '반주 듣는 중…';
+    } else if(m < melT+0.45){
+      ci.classList.add('on'); $('#countN').textContent='시작!'; $('#countC').textContent='';
+    } else { ci.classList.remove('on'); }
+    tiles.forEach(function(t){
+      if(t.done) return;
+      remaining++;
+      var appear=t.hitT-fallSec;
+      if(m<appear){ t.el.style.display='none'; return; }
+      var frac=(m-appear)/fallSec;
+      t.el.style.display='';
+      t.el.style.top=(frac*h-TILE_H/2)+'px';
+      if(m>t.hitT+0.26){ t.done=true; t.el.style.display='none'; miss++; combo=0;
+        $('#gMiss').textContent=miss; $('#gCombo').textContent='0'; }
+    });
+    if(remaining===0){ finishGame(); return; }
+    raf=requestAnimationFrame(loop);
+  }
+  function badFlash(){ hitzone.classList.add('bad'); setTimeout(function(){ hitzone.classList.remove('bad'); },140); }
+
+  // 칼림바 음판을 누르면 판정 (게임의 유일한 입력 = 실제 운지 연습)
+  function onGameNote(note){
+    if(!playing) return;
+    var m=nowMusic(), best=null, bd=99999;
+    tiles.forEach(function(t){ if(t.done||t.note!==note) return; var d=Math.abs(m-t.hitT); if(d<bd){bd=d;best=t;} });
+    if(best && bd<=0.26){
+      best.done=true; best.el.classList.add('hit');
+      (function(el){ setTimeout(function(){ if(el.parentNode) el.style.display='none'; },120); })(best.el);
+      score++; combo++; maxcombo=Math.max(maxcombo,combo);
+      $('#gScore').textContent=score; $('#gCombo').textContent=combo;
+    } else { badFlash(); combo=0; $('#gCombo').textContent='0'; }
+  }
+
+  function finishGame(){
+    playing=false; if(raf) cancelAnimationFrame(raf);
+    stopAccomp();
+    $('#btnGame').disabled=false; $('#btnGameStop').disabled=true;
+    var total=seq.length;
+    var best=loadBest(gameSong.value);
+    var isNew=score>best;
+    if(isNew) saveBest(gameSong.value, score);
+    showBest();
+    $('#gameMsg').textContent = '결과 · '+score+'/'+total+' 맞힘 · 최대 콤보 '+maxcombo + (isNew?'  🎉 최고 기록 경신!':'');
+    $('#gameMsg').style.color = isNew? 'var(--ok)' : 'var(--ink-2)';
+    if(score>0) openScoreModal(total);
+  }
+
+  /* ── 랭킹 ── */
+  function rankKey(id){ return 'kal-rank-'+id; }
+  function loadRank(id){ try{ return JSON.parse(localStorage.getItem(rankKey(id))||'[]'); }catch(e){ return []; } }
+  function saveRank(id,list){ try{ localStorage.setItem(rankKey(id), JSON.stringify(list.slice(0,10))); }catch(e){} }
+  function renderRank(){
+    var id=gameSong.value;
+    $('#rankSong').textContent=SONGS[id].title;
+    var list=loadRank(id), body=$('#rankBody');
+    if(!list.length){ body.innerHTML='<div class="empty">아직 기록이 없어요. 게임을 하고 이름을 올려 보세요!</div>'; return; }
+    var medal=['🥇','🥈','🥉'];
+    body.innerHTML='<ol>'+list.map(function(r,i){
+      return '<li><b>'+(medal[i]||(i+1)+'위')+' '+escapeHtml(r.name)+'</b><span>'+r.score+'개</span></li>';
+    }).join('')+'</ol>';
+  }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  var modal=$('#scoreModal'), pendingTotal=0;
+  function openScoreModal(total){
+    pendingTotal=total;
+    $('#mScore').textContent=score;
+    $('#mDetail').textContent=SONGS[gameSong.value].title+' · 전체 '+total+'개 중 · 최대 콤보 '+maxcombo;
+    $('#mName').value='';
+    modal.classList.add('on');
+    setTimeout(function(){ $('#mName').focus(); },50);
+  }
+  function closeModal(){ modal.classList.remove('on'); }
+  $('#mSave').addEventListener('click', function(){
+    var name=($('#mName').value||'').trim() || '익명';
+    var id=gameSong.value, list=loadRank(id);
+    list.push({name:name, score:score});
+    list.sort(function(a,b){ return b.score-a.score; });
+    saveRank(id, list);
+    renderRank(); closeModal();
+    $('#gameMsg').textContent='랭킹에 올렸습니다 — '+name+' '+score+'개';
+    $('#gameMsg').style.color='var(--ok)';
+  });
+  $('#mSkip').addEventListener('click', closeModal);
+  $('#mName').addEventListener('keydown', function(e){ if(e.key==='Enter') $('#mSave').click(); });
+  modal.addEventListener('click', function(e){ if(e.target===modal) closeModal(); });
+  $('#btnGame').addEventListener('click', startGame);
+  $('#btnGameStop').addEventListener('click', function(){ if(playing){ playing=false; if(raf)cancelAnimationFrame(raf); stopAccomp(); $('#btnGame').disabled=false; $('#btnGameStop').disabled=true; $('#gameMsg').textContent='중지했습니다.'; } });
+
+  function loadBest(id){ try{ return parseInt(localStorage.getItem('kal-game-'+id)||'0',10)||0; }catch(e){ return 0; } }
+  function saveBest(id,v){ try{ localStorage.setItem('kal-game-'+id, String(v)); }catch(e){} }
+  function showBest(){ $('#gBest').textContent = loadBest(gameSong.value); }
+
+  window.addEventListener('resize', function(){ hitlineEl.style.top=hitY()+'px'; hitzone.style.top=(hitY()-24)+'px'; layoutTiles(); });
+
+  /* 초기화 */
+  selectSong('minuet');
+  prepareGame(); showBest(); renderRank();
+})();
+</script>
+</body>
+</html>
